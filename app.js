@@ -67,7 +67,9 @@ function tileStatus(tileId, incident, parties, photos) {
       return { cls: 'red', text: 'Not started' };
     case 'exchange': {
       const n = parties.filter((p) => p.party_type === 'other_driver').length;
-      return n > 0 ? { cls: 'green', text: 'Done' } : { cls: 'red', text: 'Not started' };
+      if (n > 0) return { cls: 'green', text: 'Done' };
+      if (incident.checklist_state && incident.checklist_state.exchange_no_other_party) return { cls: 'green', text: 'N/A' };
+      return { cls: 'red', text: 'Not started' };
     }
     case 'witnesses': {
       const n = parties.filter((p) => p.party_type === 'independent_witness' || p.party_type === 'other_party_witness').length;
@@ -162,6 +164,41 @@ async function handleContinueWithoutSignIn() {
     await boot();
   } catch (err) {
     $('#auth-error').textContent = err.message || "Couldn't continue without signing in.";
+  }
+}
+
+async function handleForgotPassword() {
+  const email = $('#auth-email').value.trim();
+  const errorEl = $('#auth-error');
+  const infoEl = $('#auth-info');
+  errorEl.textContent = '';
+  infoEl.textContent = '';
+  if (!email) {
+    errorEl.textContent = 'Enter your email above first, then tap "Forgot password?"';
+    return;
+  }
+  try {
+    await Sync.resetPasswordForEmail(email);
+    infoEl.textContent = 'Check your email for a password reset link.';
+  } catch (err) {
+    errorEl.textContent = err.message || "Couldn't send the reset email.";
+  }
+}
+
+async function handleSetNewPassword() {
+  const pw = $('#new-password').value;
+  const errorEl = $('#reset-error');
+  errorEl.textContent = '';
+  if (!pw || pw.length < 6) {
+    errorEl.textContent = 'Password must be at least 6 characters';
+    return;
+  }
+  try {
+    await Sync.updatePassword(pw);
+    toast('Password updated');
+    await boot();
+  } catch (err) {
+    errorEl.textContent = err.message || "Couldn't update your password.";
   }
 }
 
@@ -351,15 +388,36 @@ async function saveSafety() {
 
 function renderExchangeScreen() {
   const others = currentParties.filter((p) => p.party_type === 'other_driver');
+  const noOtherParty = !!(currentIncident.checklist_state && currentIncident.checklist_state.exchange_no_other_party);
+
+  $('#exchange-done-banner').classList.toggle('hidden', !noOtherParty);
+  $('#exchange-no-other-btn').classList.toggle('hidden', noOtherParty || others.length > 0);
+
   const list = $('#exchange-list');
   list.innerHTML = others.length
     ? others.map((p) => `<div class="party-card">
         <div class="top"><span class="name">${escapeHtml(p.name || 'Unnamed driver')}</span><span class="remove" data-remove="${p.id}">Remove</span></div>
         <p class="detail">${[p.vehicle_registration, p.insurer, p.phone].filter(Boolean).join(' · ') || 'No details given'}</p>
       </div>`).join('')
-    : '<p class="empty">No other driver added yet.</p>';
+    : (noOtherParty ? '' : '<p class="empty">No other driver added yet — a single-vehicle incident? Mark "No other party involved" below.</p>');
   list.querySelectorAll('[data-remove]').forEach((el) => el.addEventListener('click', () => removeParty(el.dataset.remove, renderExchangeScreen)));
   $('#exchange-form').classList.add('hidden');
+}
+
+// Marking "no other party" is a statement about the incident, not just an
+// empty list — so it's stored and shown distinctly from "not started yet",
+// the same distinction witnesses/photos draw with their own marked-done flag.
+async function markExchangeNoOtherParty() {
+  const nextState = { ...(currentIncident.checklist_state || {}), exchange_no_other_party: true };
+  await Sync.updateIncident(currentIncident.id, { checklist_state: nextState });
+  currentIncident.checklist_state = nextState;
+  renderExchangeScreen();
+}
+async function undoExchangeNoOtherParty() {
+  const nextState = { ...(currentIncident.checklist_state || {}), exchange_no_other_party: false };
+  await Sync.updateIncident(currentIncident.id, { checklist_state: nextState });
+  currentIncident.checklist_state = nextState;
+  renderExchangeScreen();
 }
 
 function showExchangeForm() {
@@ -376,6 +434,10 @@ async function saveExchangeParty() {
       vehicle_registration: $('#ex-reg').value || null,
       insurer: $('#ex-insurer').value || null,
     });
+    // Adding a driver contradicts "no other party involved" — clear it silently.
+    if (currentIncident.checklist_state && currentIncident.checklist_state.exchange_no_other_party) {
+      await undoExchangeNoOtherParty();
+    }
     currentParties = await Sync.fetchParties(currentIncident.id);
     renderExchangeScreen();
   } catch (err) { toast(err.message); }
@@ -774,6 +836,14 @@ window.addEventListener('DOMContentLoaded', async () => {
   $('#tab-register').addEventListener('click', () => setAuthMode('register'));
   $('#auth-submit').addEventListener('click', handleAuthSubmit);
   $('#continue-anon-btn').addEventListener('click', handleContinueWithoutSignIn);
+  $('#forgot-password-btn').addEventListener('click', handleForgotPassword);
+  $('#set-new-password-btn').addEventListener('click', handleSetNewPassword);
+
+  // Fires when the user arrives back in the app via a password-reset
+  // email link, rather than through a normal sign-in.
+  Sync.onAuthStateChange((event) => {
+    if (event === 'PASSWORD_RECOVERY') showScreen('set-new-password');
+  });
 
   $('#sos-button').addEventListener('click', openTypePicker);
   $('#type-back').addEventListener('click', () => showScreen('home'));
@@ -792,6 +862,8 @@ window.addEventListener('DOMContentLoaded', async () => {
   $('#exchange-back').addEventListener('click', () => showScreen('hub'));
   $('#exchange-add-btn').addEventListener('click', showExchangeForm);
   $('#exchange-save-btn').addEventListener('click', saveExchangeParty);
+  $('#exchange-no-other-btn').addEventListener('click', markExchangeNoOtherParty);
+  $('#exchange-undo').addEventListener('click', undoExchangeNoOtherParty);
 
   $('#witnesses-back').addEventListener('click', () => showScreen('hub'));
   $('#witnesses-add-btn').addEventListener('click', showWitnessForm);

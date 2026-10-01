@@ -35,6 +35,29 @@ const Sync = {
     return data;
   },
 
+  // Sends a reset-password email. redirectTo must be in Supabase's
+  // Authentication → URL Configuration → Redirect URLs allow-list, or
+  // Supabase silently falls back to the project's default Site URL instead.
+  async resetPasswordForEmail(email) {
+    const { error } = await getClient().auth.resetPasswordForEmail(email, {
+      redirectTo: window.location.origin + window.location.pathname,
+    });
+    if (error) throw error;
+  },
+
+  // Called once the user has followed the reset-password email link and
+  // landed back in the app in "recovery" mode (see onAuthStateChange below).
+  async updatePassword(newPassword) {
+    const { error } = await getClient().auth.updateUser({ password: newPassword });
+    if (error) throw error;
+  },
+
+  // Fires PASSWORD_RECOVERY when the user arrives via a reset-password
+  // email link, so the app can show the "set a new password" screen.
+  onAuthStateChange(callback) {
+    getClient().auth.onAuthStateChange((event, session) => callback(event, session));
+  },
+
   // The core of "works without an account": a real, persistent Supabase
   // auth user with no email/password. The session caches in this browser's
   // local storage automatically, so re-opening the app later returns to
