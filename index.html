@@ -1,0 +1,273 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>MotoringSOS</title>
+<link rel="icon" href="icon.svg" type="image/svg+xml" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tabler-icons/2.44.0/tabler-icons.min.css" />
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<div class="app-shell">
+
+  <div id="offline-banner" class="offline-banner hidden">You're offline — changes will sync once you're back online</div>
+
+  <!-- ================= ENTRY / AUTH ================= -->
+  <section id="screen-entry" class="screen auth-wrap">
+    <div class="auth-card">
+      <div class="auth-logo"><img src="icon.svg" alt="" /></div>
+      <h2 class="auth-title">MotoringSOS</h2>
+      <p class="auth-sub">Help in an incident — with or without an account</p>
+      <p id="auth-error" class="auth-error"></p>
+
+      <button id="continue-anon-btn" class="btn btn-rust btn-block" type="button" style="margin-bottom:14px;">Continue without signing in</button>
+      <p class="or-divider">or sign in to sync across devices</p>
+
+      <div class="field"><label for="auth-email">Email</label><input id="auth-email" type="email" placeholder="name@email.com" /></div>
+      <div class="field"><label for="auth-password">Password</label><input id="auth-password" type="password" placeholder="Password" /></div>
+      <p style="text-align:right;margin:-4px 0 10px;"><button id="forgot-password-btn" class="link-btn" type="button">Forgot password?</button></p>
+      <button id="auth-signin-btn" class="btn btn-primary btn-block" type="button">Sign in</button>
+      <button id="auth-signup-btn" class="btn btn-ghost btn-block" type="button" style="margin-top:8px;">Create account</button>
+      <p id="auth-info" class="auth-note" style="color:var(--ok);"></p>
+      <p class="auth-note">Uses the same login as MotoringMonitor</p>
+    </div>
+  </section>
+
+  <!-- ================= SET NEW PASSWORD (after reset email link) ================= -->
+  <section id="screen-set-new-password" class="screen hidden auth-wrap">
+    <div class="auth-card">
+      <h2 class="auth-title">Set a new password</h2>
+      <p class="auth-sub">Choose a new password for your account</p>
+      <p id="reset-error" class="auth-error"></p>
+      <div class="field"><label for="new-password">New password</label><input id="new-password" type="password" placeholder="At least 6 characters" /></div>
+      <button id="set-new-password-btn" class="btn btn-primary btn-block" type="button">Set new password</button>
+    </div>
+  </section>
+
+  <!-- ================= HOME ================= -->
+  <section id="screen-home" class="screen hidden">
+    <div class="main-header">
+      <div class="brand"><img src="icon.svg" alt="" /><h1>MotoringSOS</h1></div>
+      <button id="account-btn" class="account-btn" type="button" aria-label="Account">&#128100;</button>
+    </div>
+
+    <div id="unfinished-banner" class="unfinished-banner hidden">
+      <i class="ti ti-clock-exclamation" style="font-size:22px;color:#FAEEDA" aria-hidden="true"></i>
+      <div style="flex:1"><p class="title"></p><p class="sub"></p></div>
+      <i class="ti ti-chevron-right" style="color:#FAEEDA" aria-hidden="true"></i>
+    </div>
+
+    <div id="sos-button" class="sos-button">
+      <i class="ti ti-alert-triangle" style="font-size:28px;color:#FAECE7" aria-hidden="true"></i>
+      <div><p class="title">Report an incident</p><p class="sub">Checklist, photos and guidance — right now</p></div>
+      <i class="ti ti-chevron-right" style="color:#fff;margin-left:auto" aria-hidden="true"></i>
+    </div>
+
+    <div class="history-section">
+      <p class="label">Past incidents</p>
+      <div id="history-list"></div>
+    </div>
+  </section>
+
+  <!-- ================= ACCOUNT ================= -->
+  <section id="screen-account" class="screen hidden">
+    <div class="vheader"><h2>Account</h2></div>
+    <div class="card" style="margin:0 16px;">
+      <p style="font-size:10px;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;color:var(--ink-soft);margin:0 0 6px;">Signed in as</p>
+      <p id="account-screen-email" style="font-size:14px;margin:0;"></p>
+      <p id="account-screen-status" style="font-size:12px;color:var(--ink-soft);margin:4px 0 14px;"></p>
+      <button id="account-signout-btn" class="btn btn-ghost btn-block" type="button">Sign out</button>
+    </div>
+    <div class="back-link-row"><button id="account-back" class="link-btn" type="button">&larr; Back to home</button></div>
+  </section>
+
+  <!-- ================= TYPE PICKER ================= -->
+  <section id="screen-type-picker" class="screen hidden">
+    <div class="vheader"><h2>What's happening?</h2></div>
+    <div id="type-list" class="type-list"></div>
+    <div class="back-link-row"><button id="type-back" class="link-btn" type="button">&larr; Back to home</button></div>
+  </section>
+
+  <!-- ================= INCIDENT HUB ================= -->
+  <section id="screen-hub" class="screen hidden">
+    <div class="vheader"><h2 id="hub-title"></h2></div>
+    <div class="timestamp-banner"><i class="ti ti-clock" style="font-size:12px;color:var(--paper)" aria-hidden="true"></i><span id="hub-timestamp"></span></div>
+    <div id="hub-reminder" class="reminder-banner hidden"><span></span></div>
+    <div class="progress-row"><span id="hub-progress-text"></span><div id="hub-progress-track" class="progress-track"></div></div>
+    <div id="hub-wide-tiles" class="tile-section-label" style="margin-bottom:10px;"></div>
+    <div class="tile-section-label">At the scene</div>
+    <div id="hub-tile-grid" class="tile-grid"></div>
+    <div class="hub-footer">
+      <button id="hub-export-btn" class="btn btn-primary btn-block" type="button">Save & export</button>
+      <button id="hub-close-btn" class="btn btn-ghost btn-block" type="button" style="margin-top:8px;">Close incident</button>
+    </div>
+    <div class="back-link-row"><button id="hub-back" class="link-btn" type="button">&larr; Back to home</button></div>
+  </section>
+
+  <!-- ================= SAFETY ================= -->
+  <section id="screen-sub-safety" class="screen hidden">
+    <div class="vheader"><h2>Safety check</h2></div>
+    <div class="sub-form">
+      <div class="radio-row">
+        <div id="safety-yes" class="radio-opt" style="border-color:var(--line)">Everyone's safe</div>
+        <div id="safety-no" class="radio-opt" style="border-color:var(--rust);color:var(--rust)">Someone's hurt</div>
+      </div>
+      <div id="injury-panel" class="hidden" style="border-left:3px solid var(--rust);background:var(--red-bg);border-radius:0 8px 8px 0;padding:10px 12px;">
+        <div class="field"><label>Who's hurt, and how badly?</label><textarea id="injury-description" rows="2"></textarea></div>
+        <label style="display:block;font-size:11px;font-weight:600;color:var(--ink-soft);margin-bottom:6px;">Ambulance called?</label>
+        <div class="radio-row" style="margin-bottom:0;">
+          <div id="ambulance-yes" class="radio-opt">Yes</div>
+          <div id="ambulance-no" class="radio-opt">Not yet</div>
+        </div>
+      </div>
+      <button id="safety-save" class="btn btn-primary btn-block" type="button">Save</button>
+    </div>
+    <div class="back-link-row"><button id="safety-back" class="link-btn" type="button">&larr; Back to hub</button></div>
+  </section>
+
+  <!-- ================= EXCHANGE DETAILS ================= -->
+  <section id="screen-sub-exchange" class="screen hidden">
+    <div class="vheader"><h2>Exchange details</h2></div>
+    <div id="exchange-done-banner" class="done-banner hidden"><i class="ti ti-check" style="color:var(--ok)" aria-hidden="true"></i><span class="msg">No other party was involved</span><span id="exchange-undo" class="undo">Undo</span></div>
+    <div id="exchange-list" class="party-list"></div>
+    <div id="exchange-form" class="sub-form hidden">
+      <div class="field"><label>Name</label><input id="ex-name" type="text" /></div>
+      <div class="field"><label>Phone</label><input id="ex-phone" type="text" /></div>
+      <div class="field"><label>Vehicle registration</label><input id="ex-reg" type="text" /></div>
+      <div class="field"><label>Insurer</label><input id="ex-insurer" type="text" /></div>
+      <button id="exchange-save-btn" class="btn btn-primary btn-block" type="button">Add</button>
+    </div>
+    <div id="exchange-add-btn" class="add-row">+ Add other driver</div>
+    <div id="exchange-no-other-btn" class="mark-done-row"><span>No other party involved</span></div>
+    <div class="back-link-row"><button id="exchange-back" class="link-btn" type="button">&larr; Back to hub</button></div>
+  </section>
+
+  <!-- ================= WITNESSES ================= -->
+  <section id="screen-sub-witnesses" class="screen hidden">
+    <div class="vheader"><h2>Witnesses</h2></div>
+    <div id="witnesses-done-banner" class="done-banner hidden"><i class="ti ti-check" style="color:var(--ok)" aria-hidden="true"></i><span class="msg">Marked complete — you can still add more</span><span id="witnesses-undo" class="undo">Undo</span></div>
+    <div id="witnesses-list" class="party-list"></div>
+    <div id="witnesses-form" class="sub-form hidden">
+      <div class="field"><label>Name</label><input id="wit-name" type="text" /></div>
+      <div class="field"><label>Phone</label><input id="wit-phone" type="text" /></div>
+      <label style="display:flex;align-items:center;gap:8px;font-size:12px;"><input id="wit-declined" type="checkbox" style="width:auto;" /> Declined to give details</label>
+      <button id="witnesses-save-btn" class="btn btn-primary btn-block" type="button">Add</button>
+    </div>
+    <div id="witnesses-add-btn" class="add-row">+ Add a witness</div>
+    <div id="witnesses-mark-done" class="mark-done-row"><span>No more witnesses</span></div>
+    <div class="back-link-row"><button id="witnesses-back" class="link-btn" type="button">&larr; Back to hub</button></div>
+  </section>
+
+  <!-- ================= PHOTOS ================= -->
+  <section id="screen-sub-photos" class="screen hidden">
+    <div class="vheader"><h2>Photos</h2></div>
+    <div id="photos-done-banner" class="done-banner hidden"><i class="ti ti-check" style="color:var(--ok)" aria-hidden="true"></i><span class="msg">Marked complete — you can still add more</span><span id="photos-undo" class="undo">Undo</span></div>
+    <p id="photos-status-line" style="margin:0 16px 10px;font-size:11px;color:var(--amber-text);"></p>
+    <div id="photos-list" class="photo-list"></div>
+    <input id="take-photo-input" type="file" accept="image/*" capture="environment" class="hidden" />
+    <input id="import-photo-input" type="file" accept="image/*" multiple class="hidden" />
+    <div class="capture-row">
+      <button id="take-photo-btn" class="btn" type="button"><i class="ti ti-camera" aria-hidden="true"></i> Take photo</button>
+      <button id="import-photo-btn" class="btn" type="button"><i class="ti ti-photo" aria-hidden="true"></i> From gallery</button>
+    </div>
+    <div id="photos-mark-done" class="mark-done-row"><span>No more photos</span></div>
+    <div class="back-link-row"><button id="photos-back" class="link-btn" type="button">&larr; Back to hub</button></div>
+  </section>
+
+  <!-- ================= SCENE NOTES ================= -->
+  <section id="screen-sub-scene" class="screen hidden">
+    <div class="vheader"><h2>Scene notes</h2></div>
+    <div class="sub-form">
+      <div class="field"><label>Location</label><input id="scene-location" type="text" placeholder="Street, junction, or landmark" /></div>
+      <button id="scene-use-location" class="link-btn" type="button" style="margin:-4px 0 4px;">Use my current location</button>
+      <div class="field"><label>Weather conditions</label><input id="scene-weather" type="text" placeholder="e.g. Raining, poor visibility" /></div>
+      <div class="field"><label>Road conditions</label><input id="scene-road" type="text" placeholder="e.g. Wet, icy, well-lit" /></div>
+      <button id="scene-save" class="btn btn-primary btn-block" type="button">Save</button>
+    </div>
+    <div class="back-link-row"><button id="scene-back" class="link-btn" type="button">&larr; Back to hub</button></div>
+  </section>
+
+  <!-- ================= POLICE AT SCENE ================= -->
+  <section id="screen-sub-police_scene" class="screen hidden">
+    <div class="vheader"><h2>Police at scene</h2></div>
+    <div class="sub-form">
+      <div class="radio-row">
+        <div id="police-yes" class="radio-opt">Attended</div>
+        <div id="police-no" class="radio-opt">Didn't attend</div>
+      </div>
+      <div id="police-fields" class="hidden">
+        <div class="field"><label>Officer name</label><input id="police-officer-name" type="text" /></div>
+        <div class="field"><label>Collar number</label><input id="police-collar" type="text" /></div>
+        <div class="field"><label>Incident reference</label><input id="police-reference" type="text" /></div>
+      </div>
+      <button id="police-scene-save" class="btn btn-primary btn-block" type="button">Save</button>
+    </div>
+    <div class="back-link-row"><button id="police-scene-back" class="link-btn" type="button">&larr; Back to hub</button></div>
+  </section>
+
+  <!-- ================= INSURER ================= -->
+  <section id="screen-sub-insurer" class="screen hidden">
+    <div class="vheader"><h2>Notify insurer</h2></div>
+    <div class="sub-form">
+      <p id="insurer-status" style="font-size:13px;color:var(--ink-soft);"></p>
+      <button id="insurer-mark-btn" class="btn btn-primary btn-block" type="button">Mark as notified</button>
+    </div>
+    <div class="back-link-row"><button id="insurer-back" class="link-btn" type="button">&larr; Back to hub</button></div>
+  </section>
+
+  <!-- ================= POLICE REPORT ================= -->
+  <section id="screen-sub-police_report" class="screen hidden">
+    <div class="vheader"><h2>Report to police</h2></div>
+    <div class="sub-form">
+      <label style="font-size:12px;font-weight:600;color:var(--ink-soft);">Is a report required?</label>
+      <div class="radio-row">
+        <div id="report-yes" class="radio-opt">Yes</div>
+        <div id="report-no" class="radio-opt">No</div>
+      </div>
+      <div id="report-fields" class="hidden">
+        <div class="field"><label>Reference number</label><input id="report-reference" type="text" /></div>
+        <label style="display:flex;align-items:center;gap:8px;font-size:12px;"><input id="report-filed-check" type="checkbox" style="width:auto;" /> Report has been filed</label>
+      </div>
+      <button id="police-report-save" class="btn btn-primary btn-block" type="button">Save</button>
+    </div>
+    <div class="back-link-row"><button id="police-report-back" class="link-btn" type="button">&larr; Back to hub</button></div>
+  </section>
+
+  <!-- ================= OWN ACCOUNT ================= -->
+  <section id="screen-sub-own_account" class="screen hidden">
+    <div class="vheader"><h2>Your account</h2></div>
+    <div class="sub-form">
+      <div class="field"><label>What happened, in your own words</label><textarea id="own-account-text" rows="6"></textarea></div>
+      <button id="own-account-save" class="btn btn-primary btn-block" type="button">Save</button>
+    </div>
+    <div class="back-link-row"><button id="own-account-back" class="link-btn" type="button">&larr; Back to hub</button></div>
+  </section>
+
+  <!-- ================= EXPORT ================= -->
+  <section id="screen-export" class="screen hidden">
+    <div class="vheader"><h2>Save this record</h2></div>
+    <div id="export-account-row" class="export-card row">
+      <i class="ti ti-cloud-check" aria-hidden="true"></i>
+      <div><p class="title">Save to your account</p><p id="export-account-sub" class="sub"></p></div>
+    </div>
+    <div class="export-card">
+      <div class="row"><i class="ti ti-download" aria-hidden="true"></i><div><p class="title">Download a copy</p><p class="sub">Photos plus a text summary</p></div></div>
+      <div id="export-download-btn" class="action-btn" style="background:var(--ink);"><span style="color:var(--paper);font-size:12px;font-weight:600;">Download</span></div>
+    </div>
+    <div class="export-card">
+      <div class="row"><i class="ti ti-share" aria-hidden="true"></i><div><p class="title">Share</p><p class="sub">Send to your insurer, a family member, etc.</p></div></div>
+      <div id="export-share-btn" class="action-btn" style="border:1.5px solid var(--line);"><span style="font-size:12px;font-weight:600;">Share</span></div>
+    </div>
+    <div class="back-link-row"><button id="export-back" class="link-btn" type="button">&larr; Back to hub</button></div>
+  </section>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="sync.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
