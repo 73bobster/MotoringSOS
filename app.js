@@ -272,6 +272,7 @@ function openAccountScreen() {
   $('#account-screen-status').textContent = Sync.isAnonymous(session)
     ? 'Your incidents are saved on this device only.'
     : 'Synced to your account.';
+  $('#account-signout-btn').textContent = Sync.isAnonymous(session) ? 'Create account / sign in' : 'Sign out';
   showScreen('account');
 }
 

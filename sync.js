@@ -4,40 +4,59 @@
 // incident_photos tables (and the incident-photos storage bucket), all of
 // which were added additively — nothing here touches MM's or LM's tables.
 
-const SUPABASE_URL = 'https://izqlirhiuzunwghwquog.supabase.co';
-const SUPABASE_ANON_KEY = 'sb_publishable_GYHc9BeohzdBKNkEsY_ckA_kg0gDYCU';
-
 const QUEUE_KEY = 'motoringsos_offline_queue';
 
 let _supabase = null;
 function getClient() {
   if (_supabase) return _supabase;
-  if (typeof window.supabase === 'undefined') {
-    throw new Error('Supabase library failed to load — check your internet connection.');
-  }
-  _supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  _supabase = window.NeonCompat.client;
   return _supabase;
 }
+
+const ANON_DOMAIN = '@anon.cobaltpinksoftware.com';
+const ANON_KEY = 'motoringsos_anon_login';
+const CLAIM_KEY = 'motoringsos_pending_claim';
 
 const Sync = {
 
   // ---------- Auth ----------
 
+  // Registering (or signing in) after an incident: if this device had an
+  // anonymous identity, its incidents are moved to the real account.
+  async _claimPending() {
+    const tok = localStorage.getItem(CLAIM_KEY);
+    if (!tok) return;
+    const { error } = await getClient().rpc('claim_anonymous', { tok });
+    if (!error) {
+      localStorage.removeItem(CLAIM_KEY);
+      localStorage.removeItem(ANON_KEY);
+    }
+  },
+
+  async _prepareClaim() {
+    // Called while still signed in anonymously, before switching accounts.
+    const { data } = await getClient().auth.getSession();
+    if (data.session && this.isAnonymous(data.session)) {
+      const { data: tok, error } = await getClient().rpc('make_claim_token');
+      if (!error && tok) localStorage.setItem(CLAIM_KEY, tok);
+    }
+  },
+
   async signUp(email, password) {
-    const { data, error } = await getClient().auth.signUp({ email, password });
+    await this._prepareClaim();
+    const { error } = await getClient().auth.signUp({ email, password });
     if (error) throw error;
-    return data;
+    return this.signIn(email, password);
   },
 
   async signIn(email, password) {
+    await this._prepareClaim();
     const { data, error } = await getClient().auth.signInWithPassword({ email, password });
     if (error) throw error;
+    await this._claimPending();
     return data;
   },
 
-  // Sends a reset-password email. redirectTo must be in Supabase's
-  // Authentication → URL Configuration → Redirect URLs allow-list, or
-  // Supabase silently falls back to the project's default Site URL instead.
   async resetPasswordForEmail(email) {
     const { error } = await getClient().auth.resetPasswordForEmail(email, {
       redirectTo: window.location.origin + window.location.pathname,
@@ -45,38 +64,40 @@ const Sync = {
     if (error) throw error;
   },
 
-  // Called once the user has followed the reset-password email link and
-  // landed back in the app in "recovery" mode (see onAuthStateChange below).
   async updatePassword(newPassword) {
-    const { error } = await getClient().auth.updateUser({ password: newPassword });
+    const { error } = await window.NeonCompat.resetPassword(newPassword);
     if (error) throw error;
+    await getClient().auth.signOut();
   },
 
-  // Fires PASSWORD_RECOVERY when the user arrives via a reset-password
-  // email link, so the app can show the "set a new password" screen.
+  // Fires PASSWORD_RECOVERY when the user arrives via a reset-password link.
   onAuthStateChange(callback) {
     getClient().auth.onAuthStateChange((event, session) => callback(event, session));
+    if (window.NeonCompat.recoveryToken()) setTimeout(() => callback('PASSWORD_RECOVERY', null), 0);
   },
 
-  // The core of "works without an account": a real, persistent Supabase
-  // auth user with no email/password. The session caches in this browser's
-  // local storage automatically, so re-opening the app later returns to
-  // the same identity and the same incidents.
+  // "Works without an account": a real but invisible account made for this
+  // device (random login kept in this browser). Registering later moves its
+  // incidents to the real account (see _claimPending).
   async signInAnonymously() {
-    const { data, error } = await getClient().auth.signInAnonymously();
+    const saved = (() => { try { return JSON.parse(localStorage.getItem(ANON_KEY) || 'null'); } catch { return null; } })();
+    if (saved) {
+      const { data, error } = await getClient().auth.signInWithPassword({ email: saved.email, password: saved.password });
+      if (!error) return data;
+    }
+    const id = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(36).slice(2)).replace(/-/g, '');
+    const email = 'anon-' + id + ANON_DOMAIN;
+    const password = (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36)) + 'Aa1!';
+    const { error: upErr } = await getClient().auth.signUp({ email, password });
+    if (upErr) throw upErr;
+    const { data, error } = await getClient().auth.signInWithPassword({ email, password });
     if (error) throw error;
-    return data;
-  },
-
-  // Upgrades the current anonymous session to a real account, carrying
-  // every incident recorded under it forward (same auth.uid() throughout).
-  async linkToEmail(email, password) {
-    const { data, error } = await getClient().auth.updateUser({ email, password });
-    if (error) throw error;
+    localStorage.setItem(ANON_KEY, JSON.stringify({ email, password }));
     return data;
   },
 
   async signOut() {
+    await this._prepareClaim();
     await getClient().auth.signOut();
   },
 
@@ -86,7 +107,7 @@ const Sync = {
   },
 
   isAnonymous(session) {
-    return !!(session && session.user && session.user.is_anonymous);
+    return !!(session && session.user && session.user.email && session.user.email.endsWith(ANON_DOMAIN));
   },
 
   // ---------- Household (optional — joining links existing incidents) ----------
@@ -246,8 +267,8 @@ const Sync = {
   async addPhoto(incidentId, file, meta) {
     const ext = (file.name && file.name.includes('.')) ? file.name.split('.').pop() : 'jpg';
     const path = `${incidentId}/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
-    const { error: uploadError } = await getClient().storage.from('incident-photos').upload(path, file);
-    if (uploadError) throw uploadError;
+    const { data: inc } = await getClient().from('incidents').select('household_id').eq('id', incidentId).maybeSingle();
+    await window.NeonCompat.storage.put(path, file, inc ? inc.household_id : null);
     const payload = { incident_id: incidentId, storage_path: path, ...meta };
     const { data, error } = await getClient().from('incident_photos').insert(payload).select().maybeSingle();
     if (error) throw error;
@@ -255,13 +276,11 @@ const Sync = {
   },
 
   async getPhotoUrl(storagePath) {
-    const { data, error } = await getClient().storage.from('incident-photos').createSignedUrl(storagePath, 3600);
-    if (error) throw error;
-    return data.signedUrl;
+    return window.NeonCompat.storage.getUrl(storagePath);
   },
 
   async deletePhoto(id, storagePath) {
-    await getClient().storage.from('incident-photos').remove([storagePath]);
+    await window.NeonCompat.storage.remove(storagePath);
     const { error } = await getClient().from('incident_photos').delete().eq('id', id);
     if (error) throw error;
   },
