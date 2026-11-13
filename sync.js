@@ -1,5 +1,5 @@
 // sync.js — data layer for MotoringSOS.
-// Talks to the SAME Supabase project as MotoringMonitor and LeasedMileage:
+// Talks to the SAME Neon database as MotoringMonitor and LeasedMileage:
 // same auth, same households. Adds only the incidents / incident_party /
 // incident_photos tables (and the incident-photos storage bucket), all of
 // which were added additively — nothing here touches MM's or LM's tables.
